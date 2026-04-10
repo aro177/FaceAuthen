@@ -14,7 +14,7 @@ from pydantic import BaseModel
 import uuid
 from pathlib import Path
 from liveness_detection import LivenessDetector
-from face_recognition import PersistentFaceRecognitionSystem, User, FaceIdentity, Base
+from face_recognition import PersistentFaceRecognitionSystem
 import json
 from datetime import datetime
 from uuid import UUID
@@ -77,12 +77,12 @@ def init_system():
         
         # ✅ UPDATED: TF Serving parameters instead of local model path
         face_recog_system = PersistentFaceRecognitionSystem()
-        
+        print("OK")
         print(f"✅ TF Serving connected: {os.getenv('TF_SERVING_HOST', 'localhost:8500')}")
         print(f"✅ Database loaded with {len(face_recog_system.database)} identities")
     if liveness_detector is None:
         print("🔄 Initializing shared LivenessDetector...")
-        liveness_detector = LivenessDetector(session_id="shared_runtime")
+        liveness_detector = LivenessDetector()
         print("✅ LivenessDetector initialized")
     return face_recog_system
 
@@ -149,7 +149,7 @@ async def authenticate_video(file: UploadFile = File(..., description="Video fil
         with liveness_lock:
             # Ensure request-local state does not leak across concurrent requests.
             liveness_detector.reset()
-            liveness_result = liveness_detector.analyze_video(str(temp_video_path))
+            liveness_result = liveness_detector.analyze_video(str(temp_video_path), session_id=f"user_{session_id}")
 
         liveness_passed = liveness_result["is_live"]
 
@@ -208,118 +208,6 @@ async def authenticate_video(file: UploadFile = File(..., description="Video fil
         print(f"🧹 Cleaned up session {session_id}")
 
 
-# @app.post("/auth/face", response_model=FaceRecogResponse)
-# async def authenticate_face_only(file: UploadFile = File(..., description="Video file (mp4, avi, mov)")):
-#     """
-#     Face recognition only (no liveness detection):
-#     1. Extract frames from video  
-#     2. Face recognition on first 30 frames
-#     3. Return recognized name or "unknown"
-#     """
-#     if not face_recog_system:
-#         init_system()
-
-#     # Validate file
-#     if not file.content_type.startswith('video/'):
-#         raise HTTPException(status_code=400, detail="File must be a video")
-
-#     session_id = str(uuid.uuid4())
-#     temp_video_path = TEMP_DIR / f"{session_id}_{file.filename}"
-
-#     try:
-#         # Save uploaded video
-#         with open(temp_video_path, "wb") as buffer:
-#             shutil.copyfileobj(file.file, buffer)
-
-#         print(f"📸 Processing video for face recognition: {temp_video_path}")
-
-#         # === STEP 1: Extract first 30 frames ===
-#         frames_dir = TEMP_DIR / f"frames_{session_id}"
-#         frames_dir.mkdir(exist_ok=True)
-
-#         cap = cv2.VideoCapture(str(temp_video_path))
-#         frame_count = 0
-#         saved_frames = 0
-
-#         while cap.isOpened() and saved_frames < SAVE_N_FRAMES:
-#             ret, frame = cap.read()
-#             if not ret:
-#                 break
-
-#             if frame_count % 5 == 0:  # Sample every 5th frame for speed
-#                 frame_path = frames_dir / f"frame_{saved_frames:04d}.jpg"
-#                 cv2.imwrite(str(frame_path), frame)
-#                 saved_frames += 1
-
-#             frame_count += 1
-
-#         cap.release()
-#         print(f"✅ Extracted {saved_frames} frames")
-
-#         if saved_frames < 5:  # Reduced minimum requirement
-#             return FaceRecogResponse(
-#                 success=False,
-#                 name="Unknown",
-#                 confidence=0.0,
-#                 message="Video too short (need at least 5 frames)",
-#                 reason="insufficient_frames",
-#                 details={
-#                     "frames_extracted": saved_frames
-#                 }
-#             )
-
-#         # === STEP 2: Face Recognition ===
-#         print("🎭 Running face recognition...")
-#         summary, details = face_recog_system.recognize_from_folder(
-#             folder_path=str(frames_dir),
-#             max_images=50,
-#             vote_min_matches=1,
-#             save_best_to=str(frames_dir / "best_matches")
-#         )
-
-#         # === STEP 3: Final Result ===
-#         if summary["final_name"] != "Unknown":
-#             confidence = (1 - summary["best_match"]["dist"]) * 100 if summary["best_match"] else 0
-
-#             return FaceRecogResponse(
-#                 success=True,
-#                 name=summary["final_name"],
-#                 confidence=confidence,
-#                 message=f"Face recognized: {summary['final_name']}",
-#                 reason=summary["reason"],
-#                 details={
-#                     "method": summary["reason"],
-#                     "used_frames": summary["used_images"],
-#                     "total_frames": summary["total_images"],
-#                     "votes": summary["votes"],
-#                     "confidence": f"{confidence:.1f}%"
-#                 }
-#             )
-#         else:
-#             return FaceRecogResponse(
-#                 success=False,
-#                 name="Unknown",
-#                 confidence=0.0,
-#                 message="Face not recognized",
-#                 reason="no_match",
-#                 details={
-#                     "frames_saved": saved_frames,
-#                     "action_required": "enrollment_needed"
-#                 }
-#             )
-
-#     except Exception as e:
-#         print(f"❌ Error: {str(e)}")
-#         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
-
-#     finally:
-#         # Cleanup temp files
-#         if temp_video_path.exists():
-#             temp_video_path.unlink()
-#         if frames_dir.exists():
-#             shutil.rmtree(frames_dir)
-#         print(f"🧹 Cleaned up session {session_id}")
-
 @app.post("/enroll_single/{user_name}/{user_id}")
 async def enroll_user_single(
     user_id: UUID,
@@ -346,15 +234,6 @@ async def enroll_user_single(
     person_dir.mkdir(parents=True, exist_ok=True)
 
     temp_image_path = TEMP_DIR / f"enroll_single_{session_id}.jpg"
-
-    session = face_recog_system.SessionLocal()
-    try:
-        user = session.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(status_code=400, detail="User not found")
-    finally:
-        session.close()
-
 
     try:
         # === STEP 1: Validate and save image ===

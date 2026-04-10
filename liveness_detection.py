@@ -10,13 +10,8 @@ import dlib
 from scipy.spatial import distance as dist
 
 class LivenessDetector:
-    def __init__(self, yolo_model='yolo-face.pt', output_dir='output', session_id='random_session', predictor_path="shape_predictor_68_face_landmarks.dat"):
+    def __init__(self, yolo_model='yolo-face.pt', predictor_path="shape_predictor_68_face_landmarks.dat"):
         self.yolo = YOLO(yolo_model)
-        self.output_dir = Path(output_dir) / session_id
-        self.images_dir = self.output_dir / 'tracked_frames'
-        self.json_dir = self.output_dir / 'tracking_jsons'
-        self.images_dir.mkdir(parents=True, exist_ok=True)
-        self.json_dir.mkdir(parents=True, exist_ok=True)
         
         if not os.path.exists(predictor_path):
             raise FileNotFoundError(f"Dlib model not found at {predictor_path}")
@@ -30,7 +25,6 @@ class LivenessDetector:
         
         # State tracking
         self.reset()
-        self.session_id = session_id
         self.saved_track_log = []
         
         # Landmarks indices
@@ -204,20 +198,28 @@ class LivenessDetector:
         
         return smile_msg, blink_msg
 
-    def analyze_video(self, video_path):
+    def analyze_video(self, video_path, session_id='random_session'):
         """Main function - tracking với vid_stride=30"""
+        output_dir = Path('output') / session_id
+        
         results = self.yolo.track(
             source=video_path,
             stream=True,  # Memory efficient cho video dài
             vid_stride=30,
             persist=True,
             save=False,   # Không save video, tự handle frames
-            project=self.output_dir,
+            project=output_dir,
             name='tracking_results',
             imgsz=640,
             conf=0.5,
             save_txt=False  # Không dùng save_txt mặc định
         )
+
+        
+        images_dir = output_dir / 'tracked_frames'
+        json_dir = output_dir / 'tracking_jsons'
+        images_dir.mkdir(parents=True, exist_ok=True)
+        json_dir.mkdir(parents=True, exist_ok=True)
 
         # Danh sách lưu tracking data
         all_tracks = []
@@ -226,7 +228,7 @@ class LivenessDetector:
         for result in results:
             if result.boxes is not None and len(result.boxes) > 0:
                 # Save frame as image
-                frame_path = self.images_dir / f'frame_{frame_idx:06d}.jpg'
+                frame_path = images_dir / f'frame_{frame_idx:06d}.jpg'
                 original_frame = result.orig_img  # Lấy frame gốc từ result
                 Image.fromarray(cv2.cvtColor(original_frame, cv2.COLOR_BGR2RGB)).save(frame_path)
         
@@ -239,7 +241,7 @@ class LivenessDetector:
                 for i, (bbox, tid) in enumerate(zip(boxes, track_ids)):
                     track_data = {
                         "trackingId": int(tid),
-                        "framePath": str(frame_path.relative_to(self.output_dir)),
+                        "framePath": str(frame_path.relative_to(output_dir)),
                         "bbox": [float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3])],  # x1,y1,x2,y2
                         "class": int(classes[i]) if i < len(classes) else None,
                         "conf": float(result.boxes.conf[i]) if i < len(result.boxes.conf) else None
@@ -248,7 +250,7 @@ class LivenessDetector:
                     frame_tracks.append(track_data)
         
                 # Save JSON per frame
-                frame_json_path = self.json_dir / f'frame_{frame_idx:06d}.json'
+                frame_json_path = json_dir / f'frame_{frame_idx:06d}.json'
                 with open(frame_json_path, 'w') as f:
                     json.dump(frame_tracks, f, indent=2)
         

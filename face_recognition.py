@@ -25,8 +25,11 @@ class TFServingClient:
     def __init__(self, host: str = "localhost:8500", model_name: str = "facenet", input_name: str = "input"):
         self.channel = grpc.insecure_channel(host)
         self.stub = prediction_service_pb2_grpc.PredictionServiceStub(self.channel)
+        
         self.model_name = model_name
         self.input_name = input_name  # ✅ STORE input_name HERE
+
+        print("Here 3")
         
     def predict(self, input_data: np.ndarray, input_name: str = None):
         """Use self.input_name if not provided"""
@@ -74,6 +77,8 @@ class FaceRecognitionSystem:
             input_name=input_name
         )
 
+        print("Here 2")
+        
         # Lazy-load YOLO to avoid native runtime crashes during app startup.
         self.yolo_model_path = yolo_model_path
         self.yolo = None
@@ -277,6 +282,7 @@ class PersistentFaceRecognitionSystem(FaceRecognitionSystem):
             input_name=input_name,
             **kwargs
         )
+        print("Here 1")
         self.engine = create_engine(db_url, pool_pre_ping=True)
         Base.metadata.create_all(self.engine)
         self.SessionLocal = sessionmaker(bind=self.engine)

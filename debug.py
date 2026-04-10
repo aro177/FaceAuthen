@@ -20,5 +20,7 @@ from typing import List, Dict, Tuple, Any
 from ultralytics import YOLO
 from pathlib import Path
 
-print("Finish import")
+
 yolo = YOLO("yolo-face.pt")
+
+print("Finish import")

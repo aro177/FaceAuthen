@@ -74,9 +74,16 @@ class FaceRecognitionSystem:
             input_name=input_name
         )
 
-        self.yolo = YOLO(yolo_model_path)
+        # Lazy-load YOLO to avoid native runtime crashes during app startup.
+        self.yolo_model_path = yolo_model_path
+        self.yolo = None
 
         self.database: dict[str, np.ndarray] = {}
+
+    def _get_yolo(self):
+        if self.yolo is None:
+            self.yolo = YOLO(self.yolo_model_path)
+        return self.yolo
 
     # ----------------------------
     # Utils
@@ -103,7 +110,8 @@ class FaceRecognitionSystem:
         Dùng YOLOv8 face model để detect face, trả về (x, y, w, h) của face lớn nhất.
         """
         rgb = cv2.cvtColor(bgr_img, cv2.COLOR_BGR2RGB)
-        results = self.yolo(rgb, imgsz=640, conf=0.5)
+        yolo = self._get_yolo()
+        results = yolo(rgb, imgsz=640, conf=0.5)
 
         if not results[0].boxes or len(results[0].boxes) == 0:
             return None

@@ -1,9 +1,12 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
-import cv2
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+import cv2
 import tempfile
 import shutil
 from typing import Optional, List
@@ -19,8 +22,13 @@ import multiprocessing as mp
 import numpy as np
 import base64
 from PIL import Image
+import threading
 
-mp.set_start_method('spawn', force=True)
+try:
+    mp.set_start_method('spawn')
+except RuntimeError:
+    # Already set by parent process/runtime (common with uvicorn workers).
+    pass
 
 app = FastAPI(title="Face Authentication API", version="1.0.0")
 
@@ -31,6 +39,8 @@ TEMP_DIR.mkdir(exist_ok=True)
 
 # Global Face Recognition System
 face_recog_system = None
+liveness_detector = None
+liveness_lock = threading.Lock()
 
 class FaceResult(BaseModel):
     name: str
@@ -61,7 +71,7 @@ class FaceRecogResponse(BaseModel):
     details: dict = {}
 
 def init_system():
-    global face_recog_system
+    global face_recog_system, liveness_detector
     if face_recog_system is None:
         print("🔄 Initializing PersistentFaceRecognitionSystem with TF Serving...")
         
@@ -70,6 +80,10 @@ def init_system():
         
         print(f"✅ TF Serving connected: {os.getenv('TF_SERVING_HOST', 'localhost:8500')}")
         print(f"✅ Database loaded with {len(face_recog_system.database)} identities")
+    if liveness_detector is None:
+        print("🔄 Initializing shared LivenessDetector...")
+        liveness_detector = LivenessDetector(session_id="shared_runtime")
+        print("✅ LivenessDetector initialized")
     return face_recog_system
 
 @app.on_event("startup")
@@ -130,11 +144,12 @@ async def authenticate_video(file: UploadFile = File(..., description="Video fil
 
         # 2. 👁️ Liveness: dùng LivenessDetectorBytetrack.analyze_video (thay cho for loop)
         # Cấu hình: userID theo session ID, lưu vào liveness_frames/user_<session_id>
-        liveness_detector = LivenessDetector(
-            session_id=f"user_{session_id}",
-        )
-
-        liveness_result = liveness_detector.analyze_video(str(temp_video_path))
+        if liveness_detector is None:
+            init_system()
+        with liveness_lock:
+            # Ensure request-local state does not leak across concurrent requests.
+            liveness_detector.reset()
+            liveness_result = liveness_detector.analyze_video(str(temp_video_path))
 
         liveness_passed = liveness_result["is_live"]
 

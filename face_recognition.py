@@ -17,7 +17,7 @@ from pathlib import Path
 
 
 class TFServingClient:
-    def __init__(self, host: str = "localhost:8500", model_name: str = "facenet", input_name: str = "input"):
+    def __init__(self, host: str = "127.0.0.1:8500", model_name: str = "facenet", input_name: str = "input"):
         self.channel = grpc.insecure_channel(host)
         self.stub = prediction_service_pb2_grpc.PredictionServiceStub(self.channel)
         self.model_name = model_name
@@ -47,7 +47,7 @@ class FaceRecognitionSystem:
     - Recognition: cosine distance with a simple mean-embedding database
     """
 
-    def __init__(self, tfserving_host: str = "localhost:8500", model_name: str = "facenet", input_name: str = "input", img_size: int = 160, thresh: float = 0.3, yolo_model_path="yolo-face.pt"):
+    def __init__(self, tfserving_host: str = "127.0.0.1:8500", model_name: str = "facenet", input_name: str = "input", img_size: int = 160, thresh: float = 0.3, yolo_model_path="yolo-face.pt"):
         self.img_size = img_size
         self.thresh = thresh
         self.input_name = input_name

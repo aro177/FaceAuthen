@@ -192,7 +192,7 @@ class LivenessDetector:
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         landmarks = self._get_landmarks(gray, bbox)
         
-        # Detect smile & blink
+        # Detect blink
         smile_now, smile_conf, smile_msg = self.detect_smile(landmarks)
         blink_now, blink_conf, blink_msg = self.detect_blink(landmarks)
         
@@ -262,7 +262,7 @@ class LivenessDetector:
 
             result = {
                 "message": "",
-                "is_live": self.smile_detected and self.blink_detected,
+                "is_live": self.blink_detected,
                 "smile": self.smile_detected,
                 "blink": self.blink_detected
             }

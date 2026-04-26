@@ -52,8 +52,3 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 pip install -r requirements.txt
 ```
 
----
-
----
-
-Happy coding! 🎯

@@ -1,4 +1,4 @@
-# Python Project Setup (Windows & Linux)
+# Project Setup (Windows & Linux)
 
 This guide explains how to set up and run this project on both **Windows (PowerShell)** and **Linux (Ubuntu/Debian-based)** systems.
 

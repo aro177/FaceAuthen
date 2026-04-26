@@ -1,54 +1,84 @@
-# Python Project Setup (Windows)
+# Python Project Setup (Windows & Linux)
 
-This guide explains how to set up and run this project using **Windows PowerShell**.
+This guide explains how to set up and run this project on both **Windows (PowerShell)** and **Linux (Ubuntu/Debian-based)** systems.
 
 ---
 
+# Windows Setup (PowerShell)
+
 ## Prerequisites
 
-Make sure you have **Python 3** installed on your system.
+Make sure Python 3 is installed.
 
-### Option 1: Install via Winget
+### Install via Winget
 
 ```powershell
 winget install Python.Python.3
 ```
 
-### Option 2: Manual Installation
+Or download manually: https://www.python.org/downloads/
 
-Download and install Python from: https://www.python.org/downloads/
-
-> Ensure you check **"Add Python to PATH"** during installation.
+> Remember to check **"Add Python to PATH"**
 
 ---
 
-## ⚙️ Setup Instructions
+## Steps
 
-### 1. Create a Virtual Environment
+### 1. Create virtual environment
 
 ```powershell
 python -m venv venv
 ```
 
----
-
-### 2. Activate the Virtual Environment
+### 2. Activate virtual environment
 
 ```powershell
 .\venv\Scripts\Activate.ps1
 ```
 
-#### If you encounter execution policy error:
+#### If execution policy error occurs:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
----
-
-### 3. Install Dependencies
+### 3. Install dependencies
 
 ```powershell
 pip install -r requirements.txt
 ```
 
+---
+
+# Linux Setup (Ubuntu/Debian)
+
+## Install Python & tools
+
+```bash
+sudo apt update
+sudo apt install python3 python3-pip python3-venv -y
+```
+
+---
+
+## Steps
+
+### 1. Create virtual environment
+
+```bash
+python3 -m venv venv
+```
+
+### 2. Activate virtual environment
+
+```bash
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+---

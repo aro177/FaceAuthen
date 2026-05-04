@@ -240,7 +240,6 @@ async def enroll_user_single(
         if not file.content_type.startswith('image/'):
             raise HTTPException(status_code=400, detail="File must be an image (jpg/png)")
 
-        # Convert to JPG if needed
         if file.content_type == 'image/png':
             image = Image.open(file.file)
             image = image.convert('RGB')
@@ -248,7 +247,7 @@ async def enroll_user_single(
         else:
             with open(temp_image_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
-
+        
         # === STEP 2: Validate face detection ===
         bgr = cv2.imread(str(temp_image_path))
         if bgr is None:
@@ -263,8 +262,17 @@ async def enroll_user_single(
         
         actual_frames = 1
 
-        # === STEP 3: Build database using add_identity_from_images ===
+        # === STEP 3: Check if face existed in the system ===
         img_paths = [str(frame_path)]
+        already_has_face = face_recog_system.recognition_from_images(img_paths)
+
+        if already_has_face:
+            raise HTTPException(
+                status_code=400,
+                detail="Face existed in the current system"
+            )
+        
+        # === STEP 4: Build database using add_identity_from_images ===
         success = face_recog_system.add_identity_from_images(user_name, user_id_str, img_paths)
         
         if not success:

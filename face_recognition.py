@@ -252,7 +252,26 @@ class PersistentFaceRecognitionSystem(FaceRecognitionSystem):
         except Exception as e:
             print(f"❌ Clear failed: {e}")
             return False
-
+            
+    def recognition_from_images(self, img_paths: list[str]) -> bool:
+        for p in img_paths:
+            bgr = cv2.imread(p)
+            if bgr is None:
+                continue
+            xywh = self.detect_face_largest_xywh(bgr)
+            if xywh is None:
+                continue
+            face_rgb = self.crop_face(bgr, xywh)
+            if face_rgb is None:
+                continue
+            emb = self.get_embedding(face_rgb)
+            name, dist = self._find_best_match(emb)
+            if name != "Unknown":
+                return True
+        
+        return False
+        
+        
     def process_face_jsons(
         self,
         json_pattern: str = "output/*/tracking_jsons/frame_*.json",
